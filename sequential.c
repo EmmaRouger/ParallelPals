@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <png.h>
 #include <stdbool.h>
+#include <math.h>
 
-#define WIDTH 100   // Define image width
-#define HEIGHT 100  // Define image height
+// #define WIDTH 100   // Define image width
+// #define HEIGHT 100  // Define image height
 #define CHANNELS 3  // Define the number of color channels
 
 #define K 8  // Number of clusters for K-means
@@ -27,10 +28,13 @@ double calculateDistance(Pixel p1, Pixel p2) {
     return sqrt(pow(p1.r - p2.r, 2) + pow(p1.g - p2.g, 2) + pow(p1.b - p2.b, 2));
 }
 
-// Update centroids based on assigned pixels
-void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K], Pixel pixels[WIDTH][HEIGHT]) {
-    for (int i = 0; i < K; i++) {
-        if (clusterSizes[i] > 0) {
+//Update centroids based on assigned pixels
+void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K], Pixel pixels[WIDTH][HEIGHT])
+{
+    for (int i = 0; i < K; i++)
+    {
+        if (clusterSizes[i] > 0)
+        {
             centroids[i].r = clusters[i] / clusterSizes[i];
             centroids[i].g = clusters[i] / clusterSizes[i];
             centroids[i].b = clusters[i] / clusterSizes[i];
@@ -89,103 +93,194 @@ void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
     }
 }
 
-int main() {
-    Pixel pixels[WIDTH][HEIGHT];
-    Pixel centroids[K];
-
-    // Initialize centroids and pixels, read from a PNG image using libpng
-
-    FILE *file = fopen("input.png", "rb");
-    if (!file) {
-        printf("Failed to open the image file\n");
-        return -1;
+// Function to read PNG file and create a 2D array of pixels
+Pixel** readPNG(const char* filename, int* width, int* height) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) {
+        fprintf(stderr, "Error opening file %s\n", filename);
+        return NULL;
     }
 
     png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png) {
-        fclose(file);
-        printf("Failed to create PNG read structure\n");
-        return -1;
+        fclose(fp);
+        fprintf(stderr, "Error initializing libpng\n");
+        return NULL;
     }
 
     png_infop info = png_create_info_struct(png);
     if (!info) {
-        png_destroy_read_struct(&png, (png_infopp)NULL, (png_infopp)NULL);
-        fclose(file);
-        printf("Failed to create PNG info structure\n");
-        return -1;
+        fclose(fp);
+        png_destroy_read_struct(&png, NULL, NULL);
+        fprintf(stderr, "Error initializing PNG info\n");
+        return NULL;
     }
 
-    png_init_io(png, file);
+    if (setjmp(png_jmpbuf(png))) {
+        fclose(fp);
+        png_destroy_read_struct(&png, &info, NULL);
+        fprintf(stderr, "Error during PNG file reading\n");
+        return NULL;
+    }
+
+    png_init_io(png, fp);
     png_read_info(png, info);
 
-    if (png_get_color_type(png, info) != PNG_COLOR_TYPE_RGB) {
-        printf("The input image is not in RGB format\n");
-        return -1;
-    }
+    *width = png_get_image_width(png, info);
+    *height = png_get_image_height(png, info);
+    png_byte color_type = png_get_color_type(png, info);
+    png_byte bit_depth = png_get_bit_depth(png, info);
 
-    if (png_get_bit_depth(png, info) != 8) {
-        printf("The input image does not have 8-bit depth\n");
-        return -1;
-    }
+    if (bit_depth == 16)
+        png_set_strip_16(png);
 
-    if (png_get_image_width(png, info) != WIDTH || png_get_image_height(png, info) != HEIGHT) {
-        printf("Image size does not match specified dimensions\n");
-        return -1;
-    }
+    if (color_type == PNG_COLOR_TYPE_PALETTE)
+        png_set_palette_to_rgb(png);
 
-    for (int i = 0; i < K; i++) {
-        centroids[i] = pixels[rand() % WIDTH][rand() % HEIGHT];
-    }
+    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
+        png_set_expand_gray_1_2_4_to_8(png);
 
-    png_bytep row;
-    for (int i = 0; i < HEIGHT; i++) {
-        row = (png_bytep)&pixels[i];
-        png_read_row(png, row, NULL);
-    }
+    if (png_get_valid(png, info, PNG_INFO_tRNS))
+        png_set_tRNS_to_alpha(png);
 
-    fclose(file);
+    if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_PALETTE)
+        png_set_filler(png, 0xFF, PNG_FILLER_AFTER);
+
+    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+        png_set_gray_to_rgb(png);
+
+    png_read_update_info(png, info);
+
+    // Allocate memory for the row pointers
+    png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * (*height));
+    for (int y = 0; y < *height; y++)
+        row_pointers[y] = (png_byte*)malloc(png_get_rowbytes(png, info));
+
+    png_read_image(png, row_pointers);
+
+    fclose(fp);
     png_destroy_read_struct(&png, &info, NULL);
 
-    // Perform K-means clustering
-    kMeans(centroids, pixels);
-
-    // Save the clustered image (output) using libpng
-
-    FILE *outputFile = fopen("output.png", "wb");
-    if (!outputFile) {
-        printf("Failed to create the output file\n");
-        return -1;
+    // Create a 2D array of pixels
+    Pixel** pixels = (Pixel**)malloc(sizeof(Pixel*) * (*height));
+    for (int y = 0; y < *height; y++) {
+        pixels[y] = (Pixel*)malloc(sizeof(Pixel) * (*width));
+        for (int x = 0; x < *width; x++) {
+            pixels[y][x].r = row_pointers[y][x * 4];
+            pixels[y][x].g = row_pointers[y][x * 4 + 1];
+            pixels[y][x].b = row_pointers[y][x * 4 + 2];
+        }
     }
 
-    png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    // Free memory used for row pointers
+    for (int y = 0; y < *height; y++)
+        free(row_pointers[y]);
+    free(row_pointers);
+
+    return pixels;
+}
+
+
+// Function to free the memory used by the 2D array of pixels
+void freePixels(Pixel** pixels, int height) {
+    for (int y = 0; y < height; y++)
+        free(pixels[y]);
+    free(pixels);
+}
+
+// Function to write a 2D array of pixels to a PNG file
+void writePNG(const char* filename, int width, int height, Pixel** pixels) {
+    FILE* fp = fopen(filename, "wb");
+    if (!fp) {
+        fprintf(stderr, "Error opening file %s for writing\n", filename);
+        return;
+    }
+
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png) {
-        fclose(outputFile);
-        printf("Failed to create PNG write structure\n");
-        return -1;
+        fclose(fp);
+        fprintf(stderr, "Error initializing libpng for writing\n");
+        return;
     }
 
-    info = png_create_info_struct(png);
+    png_infop info = png_create_info_struct(png);
     if (!info) {
-        fclose(outputFile);
-        png_destroy_write_struct(&png, (png_infopp)NULL);
-        printf("Failed to create PNG info structure\n");
-        return -1;
+        fclose(fp);
+        png_destroy_write_struct(&png, NULL);
+        fprintf(stderr, "Error initializing PNG info for writing\n");
+        return;
     }
 
-    png_init_io(png, outputFile);
-    png_set_IHDR(png, info, WIDTH, HEIGHT, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    if (setjmp(png_jmpbuf(png))) {
+        fclose(fp);
+        png_destroy_write_struct(&png, &info);
+        fprintf(stderr, "Error during PNG file writing\n");
+        return;
+    }
 
+    png_init_io(png, fp);
+
+    // Set image information
+    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png, info);
 
-    for (int i = 0; i < HEIGHT; i++) {
-        row = (png_bytep)&pixels[i];
-        png_write_row(png, row);
+    // Allocate memory for row pointers
+    png_bytep* row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
+    for (int y = 0; y < height; y++)
+        row_pointers[y] = (png_byte*)malloc(3 * width);
+
+    // Copy pixel values to row pointers
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            row_pointers[y][x * 3] = pixels[y][x].r;
+            row_pointers[y][x * 3 + 1] = pixels[y][x].g;
+            row_pointers[y][x * 3 + 2] = pixels[y][x].b;
+        }
     }
 
+    // Write the image data
+    png_write_image(png, row_pointers);
     png_write_end(png, NULL);
-    fclose(outputFile);
+
+    // Free memory used for row pointers
+    for (int y = 0; y < height; y++)
+        free(row_pointers[y]);
+    free(row_pointers);
+
+    // Close the file
+    fclose(fp);
+
+    // Destroy the PNG structure
     png_destroy_write_struct(&png, &info);
+
+}
+int main() {
+
+    Pixel centroids[K];
+
+    const char* filename = "input.png";
+    int width, height;
+
+    // Read the PNG file and get the 2D array of pixels
+    Pixel** pixels = readPNG(filename, &width, &height);
+
+    if (!pixels) {
+        fprintf(stderr, "Error reading PNG file\n");
+        return 1;
+    }
+
+    // Access individual pixels and their RGB values
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            printf("(%u, %u, %u) ", pixels[y][x].r, pixels[y][x].g, pixels[y][x].b);
+        }
+        printf("\n");
+    }
+
+    writePNG("output.png", width, height, pixels);
+
+    // Free the memory used by the 2D array of pixels
+    freePixels(pixels, height);
 
     return 0;
 }
