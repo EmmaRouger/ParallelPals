@@ -32,28 +32,44 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel pixels[WIDTH
 // K-means clustering on image pixels
 void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
     int clusterSizes[K] = {0};
+    int end=0;
+    while(end==0){
+        for (int i = 0; i < WIDTH; i++) {
+            for (int j = 0; j < HEIGHT; j++) {
+                double minDistance = calculateDistance(centroids[0], pixels[i][j]);
+                int closestCluster = 0;
 
-    for (int i = 0; i < WIDTH; i++) {
-        for (int j = 0; j < HEIGHT; j++) {
-            double minDistance = calculateDistance(centroids[0], pixels[i][j]);
-            int closestCluster = 0;
-
-            for (int k = 1; k < K; k++) {
-                double distance = calculateDistance(centroids[k], pixels[i][j]);
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestCluster = k;
+                for (int k = 1; k < K; k++) {
+                    double distance = calculateDistance(centroids[k], pixels[i][j]);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestCluster = k;
+                    }
                 }
-            }
 
-            centroids[closestCluster].r += pixels[i][j].r;
-            centroids[closestCluster].g += pixels[i][j].g;
-            centroids[closestCluster].b += pixels[i][j].b;
-            clusterSizes[closestCluster]++;
+                centroids[closestCluster].r += pixels[i][j].r;
+                centroids[closestCluster].g += pixels[i][j].g;
+                centroids[closestCluster].b += pixels[i][j].b;
+                clusterSizes[closestCluster]++;
+            }
+        }
+
+        Pixel oldCentroids=centroids;
+        updateCentroids(centroids, clusterSizes, pixels);
+        for(int i=0, i<K, i++)
+        {
+            if(oldCentroids[i]==centroids[i])
+            {
+                end=1;
+            }
+            else
+            {
+                end=0;
+                break;
+            }
         }
     }
-
-    updateCentroids(centroids, clusterSizes, pixels);
+    
 }
 
 int main() {
