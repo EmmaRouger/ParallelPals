@@ -5,7 +5,7 @@
 
 #define WIDTH 100   // Define image width
 #define HEIGHT 100  // Define image height
-#define CHANNELS 3  // Define the number of color channels 
+#define CHANNELS 3  // Define the number of color channels
 
 #define K 8  // Number of clusters for K-means
 
@@ -42,15 +42,19 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel pixels[WIDTH
 void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
     int clusterSizes[K] = {0};
     int end=0;
-    while(end==0){
-        for (int i = 0; i < WIDTH; i++) {
+    while(end==0)
+    {
+        for (int i = 0; i < WIDTH; i++)
+        {
             for (int j = 0; j < HEIGHT; j++) {
                 double minDistance = calculateDistance(centroids[0], pixels[i][j]);
                 int closestCluster = 0;
 
-                for (int k = 1; k < K; k++) {
+                for (int k = 1; k < K; k++)
+                {
                     double distance = calculateDistance(centroids[k], pixels[i][j]);
-                    if (distance < minDistance) {
+                    if (distance < minDistance)
+                    {
                         minDistance = distance;
                         closestCluster = k;
                     }
