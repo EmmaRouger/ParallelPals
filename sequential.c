@@ -41,10 +41,10 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K],
 // K-means clustering on image pixels
 void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
     int clusterSizes[K] = {0};
-    Pixel clusters[K] = {0};
     int end=0;
     while(end==0)
     {
+        Pixel clusters[K] = {0};
         for (int i = 0; i < WIDTH; i++)
         {
             for (int j = 0; j < HEIGHT; j++) {
