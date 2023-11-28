@@ -28,12 +28,12 @@ double calculateDistance(Pixel p1, Pixel p2) {
 }
 
 // Update centroids based on assigned pixels
-void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel pixels[WIDTH][HEIGHT]) {
+void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K], Pixel pixels[WIDTH][HEIGHT]) {
     for (int i = 0; i < K; i++) {
         if (clusterSizes[i] > 0) {
-            centroids[i].r /= clusterSizes[i];
-            centroids[i].g /= clusterSizes[i];
-            centroids[i].b /= clusterSizes[i];
+            centroids[i].r = clusters[i] / clusterSizes[i];
+            centroids[i].g = clusters[i] / clusterSizes[i];
+            centroids[i].b = clusters[i] / clusterSizes[i];
         }
     }
 }
@@ -41,6 +41,7 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel pixels[WIDTH
 // K-means clustering on image pixels
 void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
     int clusterSizes[K] = {0};
+    Pixel clusters[K] = {0};
     int end=0;
     while(end==0)
     {
@@ -60,9 +61,9 @@ void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
                     }
                 }
 
-                centroids[closestCluster].r += pixels[i][j].r;
-                centroids[closestCluster].g += pixels[i][j].g;
-                centroids[closestCluster].b += pixels[i][j].b;
+                clusters[closestCluster].r += pixels[i][j].r;
+                clusters[closestCluster].g += pixels[i][j].g;
+                clusters[closestCluster].b += pixels[i][j].b;
                 clusterSizes[closestCluster]++;
             }
         }
@@ -72,7 +73,7 @@ void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
         {
             oldCentroids[i] = centroids[i];
         }
-        updateCentroids(centroids, clusterSizes, pixels);
+        updateCentroids(centroids, clusters, clusterSizes, pixels);
         for(int i=0; i < K; i++)
         {
             if(isPixelEqual(oldCentroids[i], centroids[i]))
