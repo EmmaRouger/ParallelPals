@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <png.h>
+#include <stdbool.h>
 
 #define WIDTH 100   // Define image width
 #define HEIGHT 100  // Define image height
@@ -11,7 +12,15 @@
 // Structure to represent a pixel
 typedef struct {
     unsigned char r, g, b;
+
 } Pixel;
+
+bool isPixelEqual(Pixel p1, Pixel p2)
+{
+    if((p1.r == p2.r) && (p1.g == p2.g) && (p1.b == p2.b))
+        return true;
+    return false;
+}
 
 // Calculate distance between two pixels
 double calculateDistance(Pixel p1, Pixel p2) {
@@ -54,11 +63,15 @@ void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
             }
         }
 
-        Pixel oldCentroids=centroids;
-        updateCentroids(centroids, clusterSizes, pixels);
-        for(int i=0, i<K, i++)
+        Pixel oldCentroids[K];
+        for(int i = 0; i < K; i++)
         {
-            if(oldCentroids[i]==centroids[i])
+            oldCentroids[i] = centroids[i];
+        }
+        updateCentroids(centroids, clusterSizes, pixels);
+        for(int i=0; i < K; i++)
+        {
+            if(isPixelEqual(oldCentroids[i], centroids[i]))
             {
                 end=1;
             }
@@ -69,7 +82,6 @@ void kMeans(Pixel centroids[K], Pixel pixels[WIDTH][HEIGHT]) {
             }
         }
     }
-    
 }
 
 int main() {
