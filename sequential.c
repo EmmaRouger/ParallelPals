@@ -269,13 +269,13 @@ int main() {
         return 1;
     }
 
-    // Access individual pixels and their RGB values
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            printf("(%u, %u, %u) ", pixels[y][x].r, pixels[y][x].g, pixels[y][x].b);
-        }
-        printf("\n");
-    }
+    // Access individual pixels and prints the values
+    // for (int y = 0; y < height; y++) {
+    //     for (int x = 0; x < width; x++) {
+    //         printf("(%u, %u, %u) ", pixels[y][x].r, pixels[y][x].g, pixels[y][x].b);
+    //     }
+    //     printf("\n");
+    // }
 
     writePNG("output.png", width, height, pixels);
 
