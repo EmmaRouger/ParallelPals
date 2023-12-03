@@ -3,12 +3,13 @@
 #include <png.h>
 #include <stdbool.h>
 #include <math.h>
+#include <time.h>
 
 // #define WIDTH 100   // Define image width
 // #define HEIGHT 100  // Define image height
 #define CHANNELS 3  // Define the number of color channels
 
-#define K 3  // Number of clusters for K-means
+#define K 8  // Number of clusters for K-means
 
 // Structure to represent a pixel
 typedef struct {
@@ -24,11 +25,9 @@ bool isPixelEqual(Pixel p1, Pixel p2)
 }
 
 // Calculate distance between two pixels
-double* calculateDistance(Pixel p1, Pixel p2, double *distance) {
-    distance[0]=sqrt(pow(p1.r - p2.r, 2));
-    distance[1]=sqrt(pow(p1.g - p2.g, 2));
-    distance[2]=sqrt(pow(p1.b - p2.b, 2));
-    return distance;
+double calculateDistance(Pixel p1, Pixel p2) {
+    return sqrt(pow(p1.r - p2.r, 2)+pow(p1.g - p2.g, 2)+ pow(p1.b - p2.b, 2));
+
 }
 
 //Update centroids based on assigned pixels
@@ -42,12 +41,6 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K])
             centroids[i].g = clusters[i].g / clusterSizes[i];
             centroids[i].b = clusters[i].b / clusterSizes[i];
         }
-    }
-    printf("updated\n");
-    for(int i=0; i< K; i++)
-    {
-        
-        printf("centroid number %d, r= %u, g=%g, b=%u\n",i, centroids[i].r, centroids[i].g, centroids[i].b);
     }
 }
 
@@ -70,15 +63,13 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
         for (int i = 0; i < width; i++)
         {
             for (int j = 0; j < height; j++) {
-                double *minDistance = malloc(3 * sizeof(double));
-                minDistance = calculateDistance(centroids[0], pixels[i][j], minDistance);
+                double minDistance = calculateDistance(centroids[0], pixels[i][j]);
                 int closestCluster = 0;
-
+            
                 for (int k = 1; k < K; k++)
                 {
-                    double *distance = malloc(3 * sizeof(double));
-                    distance = calculateDistance(centroids[k], pixels[i][j], distance);
-                    if (distance[0] < minDistance[0]&&distance[1] < minDistance[1] && distance[2] < minDistance[2])
+                    double distance = calculateDistance(centroids[k], pixels[i][j]);
+                    if (distance < minDistance )
                     {
                         minDistance = distance;
                         closestCluster = k;
@@ -113,6 +104,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
                 break;
             }
         }
+        end=1;
     }
     return clusteredPixels;
 }
@@ -294,19 +286,14 @@ int main() {
     Pixel* centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
 
     for (int i = 0; i < K; i++) {
-        centroids[i].r = ceil(rand() * 255);
-        centroids[i].g = ceil(rand() * 255);
-        centroids[i].b = ceil(rand() * 255);
-    }
-    for(int i=0; i< K; i++)
-    {
-        printf("initial\n");
-        printf("centroid number %d, r= %u, g=%g, b=%u\n",i, centroids[i].r, centroids[i].g, centroids[i].b);
+        centroids[i].r = rand() % (255 - 0 + 1) + 0;
+        centroids[i].g = rand() % (255 - 0 + 1) + 0;
+        centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
 
     Pixel** clusteredImage =kMeans(centroids, pixels, width, height);
 
-    // Access individual pixels and prints the values
+    //Access individual pixels and prints the values
     // for (int y = 0; y < height; y++) {
     //     for (int x = 0; x < width; x++) {
     //         printf("(%u, %u, %u) ", pixels[y][x].r, pixels[y][x].g, pixels[y][x].b);
