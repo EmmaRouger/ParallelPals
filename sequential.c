@@ -8,7 +8,7 @@
 // #define HEIGHT 100  // Define image height
 #define CHANNELS 3  // Define the number of color channels
 
-#define K 8  // Number of clusters for K-means
+#define K 3  // Number of clusters for K-means
 
 // Structure to represent a pixel
 typedef struct {
@@ -24,8 +24,11 @@ bool isPixelEqual(Pixel p1, Pixel p2)
 }
 
 // Calculate distance between two pixels
-double calculateDistance(Pixel p1, Pixel p2) {
-    return sqrt(pow(p1.r - p2.r, 2) + pow(p1.g - p2.g, 2) + pow(p1.b - p2.b, 2));
+double* calculateDistance(Pixel p1, Pixel p2, double *distance) {
+    distance[0]=sqrt(pow(p1.r - p2.r, 2));
+    distance[1]=sqrt(pow(p1.g - p2.g, 2));
+    distance[2]=sqrt(pow(p1.b - p2.b, 2));
+    return distance;
 }
 
 //Update centroids based on assigned pixels
@@ -40,25 +43,42 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K])
             centroids[i].b = clusters[i].b / clusterSizes[i];
         }
     }
+    printf("updated\n");
+    for(int i=0; i< K; i++)
+    {
+        
+        printf("centroid number %d, r= %u, g=%g, b=%u\n",i, centroids[i].r, centroids[i].g, centroids[i].b);
+    }
 }
 
 // K-means clustering on image pixels
-void kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
+Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
     int clusterSizes[K] = {0};
     int end=0;
+    Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
+    for (int y = 0; y < height; y++) {
+        clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
+        for (int x = 0; x < width; x++) {
+            clusteredPixels[y][x].r = 0;
+            clusteredPixels[y][x].g = 0;
+            clusteredPixels[y][x].b = 0;
+        }
+    }
     while(end==0)
     {
         Pixel clusters[K] = {0};
         for (int i = 0; i < width; i++)
         {
             for (int j = 0; j < height; j++) {
-                double minDistance = calculateDistance(centroids[0], pixels[i][j]);
+                double *minDistance = malloc(3 * sizeof(double));
+                minDistance = calculateDistance(centroids[0], pixels[i][j], minDistance);
                 int closestCluster = 0;
 
                 for (int k = 1; k < K; k++)
                 {
-                    double distance = calculateDistance(centroids[k], pixels[i][j]);
-                    if (distance < minDistance)
+                    double *distance = malloc(3 * sizeof(double));
+                    distance = calculateDistance(centroids[k], pixels[i][j], distance);
+                    if (distance[0] < minDistance[0]&&distance[1] < minDistance[1] && distance[2] < minDistance[2])
                     {
                         minDistance = distance;
                         closestCluster = k;
@@ -68,6 +88,9 @@ void kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
                 clusters[closestCluster].r += pixels[i][j].r;
                 clusters[closestCluster].g += pixels[i][j].g;
                 clusters[closestCluster].b += pixels[i][j].b;
+                clusteredPixels[i][j].r = centroids[closestCluster].r;
+                clusteredPixels[i][j].g = centroids[closestCluster].g;
+                clusteredPixels[i][j].b = centroids[closestCluster].b;
                 clusterSizes[closestCluster]++;
             }
         }
@@ -91,6 +114,7 @@ void kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
             }
         }
     }
+    return clusteredPixels;
 }
 
 // Function to read PNG file and create a 2D array of pixels
@@ -256,18 +280,31 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 }
 int main() {
 
-    Pixel centroids[K];
-
     const char* filename = "input.png";
     int width, height;
-
+    printf("1\n");
     // Read the PNG file and get the 2D array of pixels
     Pixel** pixels = readPNG(filename, &width, &height);
-
+    printf("2\n");
     if (!pixels) {
         fprintf(stderr, "Error reading PNG file\n");
         return 1;
     }
+    printf("3\n");
+    Pixel* centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+
+    for (int i = 0; i < K; i++) {
+        centroids[i].r = ceil(rand() * 255);
+        centroids[i].g = ceil(rand() * 255);
+        centroids[i].b = ceil(rand() * 255);
+    }
+    for(int i=0; i< K; i++)
+    {
+        printf("initial\n");
+        printf("centroid number %d, r= %u, g=%g, b=%u\n",i, centroids[i].r, centroids[i].g, centroids[i].b);
+    }
+
+    Pixel** clusteredImage =kMeans(centroids, pixels, width, height);
 
     // Access individual pixels and prints the values
     // for (int y = 0; y < height; y++) {
@@ -277,7 +314,7 @@ int main() {
     //     printf("\n");
     // }
 
-    writePNG("output.png", width, height, pixels);
+    writePNG("output.png", width, height, clusteredImage);
 
     // Free the memory used by the 2D array of pixels
     freePixels(pixels, height);
