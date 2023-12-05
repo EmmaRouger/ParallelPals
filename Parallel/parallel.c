@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <math.h>
 #include <time.h>
+#include <omp.h>
+#include <mpi.h>
 
 // #define WIDTH 100   // Define image width
 // #define HEIGHT 100  // Define image height
@@ -65,7 +67,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
             for (int j = 0; j < height; j++) {
                 double minDistance = calculateDistance(centroids[0], pixels[i][j]);
                 int closestCluster = 0;
-            
+
                 for (int k = 1; k < K; k++)
                 {
                     double distance = calculateDistance(centroids[k], pixels[i][j]);
@@ -271,7 +273,7 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 
 }
 int main() {
-
+    printf("yeye");
     const char* filename = "input.png";
     int width, height;
     printf("1\n");
@@ -290,9 +292,9 @@ int main() {
         centroids[i].g = rand() % (255 - 0 + 1) + 0;
         centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
-
+    printf("here");
     Pixel** clusteredImage =kMeans(centroids, pixels, width, height);
-
+    printf("Here22");
     //Access individual pixels and prints the values
     // for (int y = 0; y < height; y++) {
     //     for (int x = 0; x < width; x++) {

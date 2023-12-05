@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "stdlib.h": "c",
-        "cmath": "c"
+        "cmath": "c",
+        "mpi.h": "c",
+        "stdio.h": "c"
     }
 }
