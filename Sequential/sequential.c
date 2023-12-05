@@ -271,7 +271,7 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 
 }
 int main() {
-    printf("yeye");
+
     const char* filename = "input.png";
     int width, height;
     printf("1\n");
@@ -290,9 +290,8 @@ int main() {
         centroids[i].g = rand() % (255 - 0 + 1) + 0;
         centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
-    printf("here");
+
     Pixel** clusteredImage =kMeans(centroids, pixels, width, height);
-    printf("Here22");
     //Access individual pixels and prints the values
     // for (int y = 0; y < height; y++) {
     //     for (int x = 0; x < width; x++) {
