@@ -291,7 +291,7 @@ int main() {
         centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
 
-    Pixel** clusteredImage =kMeans(centroids, pixels, width, height);
+    Pixel** clusteredImage = kMeans(centroids, pixels, width, height);
     //Access individual pixels and prints the values
     // for (int y = 0; y < height; y++) {
     //     for (int x = 0; x < width; x++) {

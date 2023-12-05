@@ -272,38 +272,57 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
     png_destroy_write_struct(&png, &info);
 
 }
-int main() {
-    const char* filename = "input.png";
-    int width, height;
-    printf("1\n");
-    // Read the PNG file and get the 2D array of pixels
-    Pixel** pixels = readPNG(filename, &width, &height);
-    printf("2\n");
-    if (!pixels) {
-        fprintf(stderr, "Error reading PNG file\n");
-        return 1;
+int main(int argc, char*argv[]) {
+    int rank, nproc, threads,height,width;
+    const char *fileName;
+    Pixel** localPixels;
+    Pixel** pixels;
+    Pixel* centroids;
+    MPI_Init(&argc, &argv);
+    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm_size(comm,&nproc);
+    MPI_Comm_rank(comm,&rank);
+
+    if(rank == 0)
+    {
+        if(argc < 3)
+        {
+            printf("Usage: parallel <fileName> <NumOfThreads>");
+            MPI_Finalize();
+            return -1;
+        }
+        threads = atoi(argv[2]);
+        fileName = argv[1];
+        // Read the PNG file and get the 2D array of pixels
+        pixels = readPNG(fileName, &width, &height);
+        if (!pixels) {
+            fprintf(stderr, "Error reading PNG file\n");
+            return 1;
+        }
+        centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+        for (int i = 0; i < K; i++)
+        {
+            centroids[i].r = rand() % (255 - 0 + 1) + 0;
+            centroids[i].g = rand() % (255 - 0 + 1) + 0;
+            centroids[i].b = rand() % (255 - 0 + 1) + 0;
+        }
+        //calulate work for each process
     }
-    printf("3\n");
-    Pixel* centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+    //brodcast the work from rank 0
+    //allocate memeory using work for local pixels
+    //scatter the pixels
+    //brodcast the centroids
+    //all run kMeanks
+    //gather the pixels
 
-    for (int i = 0; i < K; i++) {
-        centroids[i].r = rand() % (255 - 0 + 1) + 0;
-        centroids[i].g = rand() % (255 - 0 + 1) + 0;
-        centroids[i].b = rand() % (255 - 0 + 1) + 0;
+    if(rank == 0)
+    {
+        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        freePixels(pixels,height);
     }
-    Pixel** clusteredImage =kMeans(centroids, pixels, width, height);
-    //Access individual pixels and prints the values
-    // for (int y = 0; y < height; y++) {
-    //     for (int x = 0; x < width; x++) {
-    //         printf("(%u, %u, %u) ", pixels[y][x].r, pixels[y][x].g, pixels[y][x].b);
-    //     }
-    //     printf("\n");
-    // }
-
-    writePNG("output.png", width, height, clusteredImage);
-
-    // Free the memory used by the 2D array of pixels
-    freePixels(pixels, height);
+    freePixels(localPixels, height);
+    free(centroids);
+    MPI_Finalize();
 
     return 0;
 }
