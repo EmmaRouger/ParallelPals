@@ -51,8 +51,10 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
     int clusterSizes[K] = {0};
     int end=0;
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
+
+    #pragma omp parallel for//should we pass threads into this function to use clause num_threads(threads)??
     for (int y = 0; y < height; y++) {
-        clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
+        clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));//can cause issues - should allocate memory outside parallel region
         for (int x = 0; x < width; x++) {
             clusteredPixels[y][x].r = 0;
             clusteredPixels[y][x].g = 0;
@@ -290,7 +292,7 @@ int main(int argc, char*argv[])
     {
         if(argc < 3)
         {
-            printf("Usage: mpiexec -n <numOfProcs> <fileName>");
+            printf("Usage: mpiexec -n <numOfProcs> <.exe> <inputFile> <numOfThreads>");
             MPI_Finalize();
             return -1;
         }
@@ -298,14 +300,14 @@ int main(int argc, char*argv[])
         threads = atoi(argv[2]);
         printf("%d\n", threads);
 
-        fileName = argv[1];
+        fileName = argv[4];
         // Read the PNG file and get the 2D array of pixels
         pixels = readPNG(fileName, &width, &height);
         if (!pixels) {
             fprintf(stderr, "Error reading PNG file\n");
             return 1;
         }
-        //following line allocates memory for array of pointers(Pixel*) - instead should be memory for array of Pixel
+        //following line allocates memory for array of pointers(Pixel*) - instead should be memory for array of Pixel?
        centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
        //centroids = (Pixel*)malloc(sizeof(Pixel) * (K));
 
@@ -321,7 +323,7 @@ int main(int argc, char*argv[])
 
         MPI_Bcast(&work, 1, MPI_INT, 0, comm);
         MPI_Bcast(&offset, 1, MPI_INT, 0, comm);
-        MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
+
     }
     //brodcast the work from rank 0
     //allocate memeory using work for local pixels
@@ -331,14 +333,22 @@ int main(int argc, char*argv[])
     {
         localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
     }
+
     //scatter the pixels
+    //sendCounts and displs probably wrong
+    MPI_Scatterv(pixels, work, offset, MPI_BYTE, &localPixels, work, MPI_BYTE, 0, comm);
+
     //brodcast the centroids
+    MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
+
     //all run kMeanks
+    Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
+
     //gather the pixels
  
     if(rank == 0)
     {
-        //writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
         freePixels(pixels,height);
     }
     

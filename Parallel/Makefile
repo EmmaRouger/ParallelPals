@@ -1,2 +1,2 @@
 all: parallel.c
-	mpicc -fopenmp -o all parallel.c -lpng
+	mpicc -fopenmp -o out parallel.c -lpng
