@@ -272,26 +272,32 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
     png_destroy_write_struct(&png, &info);
 
 }
-int main(int argc, char*argv[]) {
-    int rank, nproc, threads,height,width;
+int main(int argc, char*argv[]) 
+{
+
+    int rank, nproc, threads,height,width, work, offset;
     const char *fileName;
     Pixel** localPixels;
     Pixel** pixels;
     Pixel* centroids;
+
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
-    MPI_Comm_size(comm,&nproc);
-    MPI_Comm_rank(comm,&rank);
+    MPI_Comm_size(comm, &nproc);
+    MPI_Comm_rank(comm, &rank);
 
     if(rank == 0)
     {
         if(argc < 3)
         {
-            printf("Usage: parallel <fileName> <NumOfThreads>");
+            printf("Usage: mpiexec -n <numOfProcs> <fileName>");
             MPI_Finalize();
             return -1;
         }
+
         threads = atoi(argv[2]);
+        printf("%d\n", threads);
+
         fileName = argv[1];
         // Read the PNG file and get the 2D array of pixels
         pixels = readPNG(fileName, &width, &height);
@@ -299,7 +305,10 @@ int main(int argc, char*argv[]) {
             fprintf(stderr, "Error reading PNG file\n");
             return 1;
         }
-        centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+        //following line allocates memory for array of pointers(Pixel*) - instead should be memory for array of Pixel
+       centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+       //centroids = (Pixel*)malloc(sizeof(Pixel) * (K));
+
         for (int i = 0; i < K; i++)
         {
             centroids[i].r = rand() % (255 - 0 + 1) + 0;
@@ -307,22 +316,35 @@ int main(int argc, char*argv[]) {
             centroids[i].b = rand() % (255 - 0 + 1) + 0;
         }
         //calulate work for each process
+        work = height / threads;
+        offset = height % threads;
+
+        MPI_Bcast(&work, 1, MPI_INT, 0, comm);
+        MPI_Bcast(&offset, 1, MPI_INT, 0, comm);
+        MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
     }
     //brodcast the work from rank 0
     //allocate memeory using work for local pixels
+
+    localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
+    for(int i = 0; i < work; i++)
+    {
+        localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
+    }
     //scatter the pixels
     //brodcast the centroids
     //all run kMeanks
     //gather the pixels
-
+ 
     if(rank == 0)
     {
-        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        //writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
         freePixels(pixels,height);
     }
+    
     freePixels(localPixels, height);
     free(centroids);
     MPI_Finalize();
-
+    
     return 0;
 }

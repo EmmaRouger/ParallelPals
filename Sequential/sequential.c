@@ -272,7 +272,7 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 }
 int main() {
 
-    const char* filename = "input.png";
+    const char* filename = "1input.png";
     int width, height;
     printf("1\n");
     // Read the PNG file and get the 2D array of pixels
