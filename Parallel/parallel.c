@@ -12,6 +12,8 @@
 #define CHANNELS 3  // Define the number of color channels
 
 #define K 8  // Number of clusters for K-means
+struct timeval start_time, end_time, start_time_kmeans; // for measuring time
+double elapsed_time = 0;
 
 // Structure to represent a pixel
 typedef struct {
@@ -48,6 +50,8 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K])
 
 // K-means clustering on image pixels
 Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
+    gettimeofday(&start_time_kmeans, NULL);
+
     int clusterSizes[K] = {0};
     int end=0;
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
@@ -110,6 +114,11 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
         }
         end=1;
     }
+
+    gettimeofday(&end_time, NULL);
+    elapsed_time = (end_time.tv_sec - start_time_kmeans.tv_sec) + (end_time.tv_usec - start_time_kmeans.tv_usec) / 1.0e6;
+    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
+
     return clusteredPixels;
 }
 
@@ -275,8 +284,8 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 
 }
 int main(int argc, char*argv[])
-{
-
+{   
+    gettimeofday(&start_time, NULL);
     int rank, nproc, threads,height,width, work, offset,start;
     const char *fileName;
     Pixel** localPixels;
@@ -337,6 +346,8 @@ int main(int argc, char*argv[])
     //brodcast the centroids
     MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
 
+    // measure k-means time
+
     //all run kMeanks
     //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
 
@@ -351,6 +362,10 @@ int main(int argc, char*argv[])
     freePixels(localPixels, height);
     free(centroids);
     MPI_Finalize();
+
+    gettimeofday(&end_time, NULL);
+    elapsed_time = (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1.0e6;
+    printf("Elapsed Time (Full): %ld\n", elapsed_time);
 
     return 0;
 }
