@@ -327,7 +327,7 @@ int main(int argc, char*argv[])
             {
                 workArray[i] = work;
                 if(rank == nproc-1)
-                    workArray[i] = height-(rank*work);
+                    workArray[i] = height-(rank*work);//read my git comment if you want to understand this right away
                 
             }
         }
