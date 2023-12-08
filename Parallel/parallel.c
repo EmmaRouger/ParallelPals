@@ -85,16 +85,16 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
                     }
                 }
 
-                #pragma critical
+                #pragma omp critical
                 {
                     clusters[closestCluster].r += pixels[i][j].r;
                     clusters[closestCluster].g += pixels[i][j].g;
                     clusters[closestCluster].b += pixels[i][j].b;
-                    clusteredPixels[i][j].r = centroids[closestCluster].r;
-                    clusteredPixels[i][j].g = centroids[closestCluster].g;
-                    clusteredPixels[i][j].b = centroids[closestCluster].b;
-                    clusterSizes[closestCluster]++;
                 }
+                clusteredPixels[i][j].r = centroids[closestCluster].r;
+                clusteredPixels[i][j].g = centroids[closestCluster].g;
+                clusteredPixels[i][j].b = centroids[closestCluster].b;
+                clusterSizes[closestCluster]++;
             }
         }
 
@@ -297,6 +297,9 @@ int main(int argc, char*argv[])
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Comm_size(comm, &nproc);
     MPI_Comm_rank(comm, &rank);
+    MPI_Datatype pixel_type;
+    MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &pixel_type);
+    MPI_Type_commit(&pixel_type);
     start_time = MPI_Wtime();
     if(rank == 0)
     {
@@ -353,11 +356,18 @@ int main(int argc, char*argv[])
 
     //brodcast the centroids
     MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
-
-
-    // //all run kMeanks
-    // Pixel** clusteredImage = kmeans(centroids, localPixels, width, height, threads);
-    // end_time = MPI_Wtime();
+    //allocate memory for local pixel
+    localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
+    for(int i = 0; i < work; i++)
+    {
+        localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
+    }
+    // Scatter the pixel into the different 
+    MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels,workArray[rank],pixel_type,0,comm);
+    printf("3");
+    //all run kMeanks
+    // Pixel** localClusteredImage = kMeans(centroids, localPixels, width, height, threads);
+    end_time = MPI_Wtime();
 
     //all run kMeanks
     //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
@@ -371,7 +381,7 @@ int main(int argc, char*argv[])
         freePixels(pixels,height);
     }
 
-    // freePixels(localPixels, height);
+    //freePixels(localPixels, work);
     free(centroids);
     end_time = MPI_Wtime();
     elapsed_time = end_time - start_time;
