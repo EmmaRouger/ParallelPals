@@ -12,7 +12,7 @@
 #define CHANNELS 3  // Define the number of color channels
 
 #define K 8  // Number of clusters for K-means
-struct timeval start_time, end_time, start_time_kmeans; // for measuring time
+double start_time, end_time, start_time_kmeans; // for measuring time
 double elapsed_time = 0;
 
 // Structure to represent a pixel
@@ -49,14 +49,13 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K])
 }
 
 // K-means clustering on image pixels
-Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
-    gettimeofday(&start_time_kmeans, NULL);
+Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int numThreads) {
 
     int clusterSizes[K] = {0};
     int end=0;
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
 
-    #pragma omp parallel for//should we pass threads into this function to use clause num_threads(threads)??
+    
     for (int y = 0; y < height; y++) {
         clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));//can cause issues - should allocate memory outside parallel region
         for (int x = 0; x < width; x++) {
@@ -68,6 +67,8 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
     while(end==0)
     {
         Pixel clusters[K] = {0};
+
+        #pragma omp parallel for num_threads(numThreads)
         for (int i = 0; i < width; i++)
         {
             for (int j = 0; j < height; j++) {
@@ -77,20 +78,23 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
                 for (int k = 1; k < K; k++)
                 {
                     double distance = calculateDistance(centroids[k], pixels[i][j]);
-                    if (distance < minDistance )
+                    if (distance < minDistance)
                     {
                         minDistance = distance;
                         closestCluster = k;
                     }
                 }
 
-                clusters[closestCluster].r += pixels[i][j].r;
-                clusters[closestCluster].g += pixels[i][j].g;
-                clusters[closestCluster].b += pixels[i][j].b;
-                clusteredPixels[i][j].r = centroids[closestCluster].r;
-                clusteredPixels[i][j].g = centroids[closestCluster].g;
-                clusteredPixels[i][j].b = centroids[closestCluster].b;
-                clusterSizes[closestCluster]++;
+                #pragma critical
+                {
+                    clusters[closestCluster].r += pixels[i][j].r;
+                    clusters[closestCluster].g += pixels[i][j].g;
+                    clusters[closestCluster].b += pixels[i][j].b;
+                    clusteredPixels[i][j].r = centroids[closestCluster].r;
+                    clusteredPixels[i][j].g = centroids[closestCluster].g;
+                    clusteredPixels[i][j].b = centroids[closestCluster].b;
+                    clusterSizes[closestCluster]++;
+                }
             }
         }
 
@@ -114,10 +118,6 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
         }
         end=1;
     }
-
-    gettimeofday(&end_time, NULL);
-    elapsed_time = (end_time.tv_sec - start_time_kmeans.tv_sec) + (end_time.tv_usec - start_time_kmeans.tv_usec) / 1.0e6;
-    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
 
     return clusteredPixels;
 }
@@ -285,7 +285,7 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 }
 int main(int argc, char*argv[])
 {   
-    gettimeofday(&start_time, NULL);
+    start_time = MPI_Wtime();
     int rank, nproc, threads,height,width, work, start;
     const char *fileName;
     Pixel** localPixels;
@@ -333,6 +333,8 @@ int main(int argc, char*argv[])
         }
     }
 
+    start_time_kmeans = MPI_Wtime();
+
     centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
     if(rank==0)
     {
@@ -353,8 +355,12 @@ int main(int argc, char*argv[])
     // measure k-means time
 
     //all run kMeanks
-    //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
+    Pixel** clusteredImage = kmeans(centroids, localPixels, width, height, threads);
+    end_time = MPI_Wtime();
 
+    elapsed_time = end_time - start_time_kmeans;
+
+    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
     //gather the pixels
 
     // if(rank == 0)
@@ -367,8 +373,10 @@ int main(int argc, char*argv[])
     free(centroids);
     MPI_Finalize();
 
-    gettimeofday(&end_time, NULL);
-    elapsed_time = (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1.0e6;
+    end_time = MPI_Wtime();
+
+    elapsed_time = end_time - start_time;
+
     printf("Elapsed Time (Full): %ld\n", elapsed_time);
 
     return 0;
