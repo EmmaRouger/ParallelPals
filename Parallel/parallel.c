@@ -349,13 +349,12 @@ int main(int argc, char*argv[])
         }
     }
 
-
-
+    MPI_Bcast(&threads,1,MPI_INT,0,comm);
     MPI_Bcast(workArray,nproc,MPI_INT,0,comm);
     MPI_Bcast(offset, nproc, MPI_INT,0,comm);
 
     //brodcast the centroids
-    MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
+    MPI_Bcast(centroids, K, pixel_type, 0, comm);
     //allocate memory for local pixel
     localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
     for(int i = 0; i < work; i++)
@@ -366,11 +365,8 @@ int main(int argc, char*argv[])
     MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels,workArray[rank],pixel_type,0,comm);
     printf("3");
     //all run kMeanks
-    // Pixel** localClusteredImage = kMeans(centroids, localPixels, width, height, threads);
+    Pixel** localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
     end_time = MPI_Wtime();
-
-    //all run kMeanks
-    //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
 
     printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
     //gather the pixels
@@ -387,12 +383,6 @@ int main(int argc, char*argv[])
     elapsed_time = end_time - start_time;
     printf("Elapsed Time (Full): %ld\n", elapsed_time);
     MPI_Finalize();
-
-    // end_time = MPI_Wtime();
-
-    // elapsed_time = end_time - start_time;
-
-    // printf("Elapsed Time (Full): %ld\n", elapsed_time);
 
     return 0;
 }
