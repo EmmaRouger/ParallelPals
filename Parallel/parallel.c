@@ -285,7 +285,6 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 }
 int main(int argc, char*argv[])
 {   
-    start_time = MPI_Wtime();
     int rank, nproc, threads,height,width, work, start;
     const char *fileName;
     Pixel** localPixels;
@@ -298,7 +297,7 @@ int main(int argc, char*argv[])
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Comm_size(comm, &nproc);
     MPI_Comm_rank(comm, &rank);
-
+    start_time = MPI_Wtime();
     if(rank == 0)
     {
         if(argc < 3)
@@ -311,7 +310,7 @@ int main(int argc, char*argv[])
         threads = atoi(argv[2]);
         printf("%d\n", threads);
 
-        fileName = argv[4];
+        fileName = "images.png";
         // Read the PNG file and get the 2D array of pixels
         pixels = readPNG(fileName, &width, &height);
         if (!pixels) {
@@ -320,8 +319,22 @@ int main(int argc, char*argv[])
         }
         //calulate work and displacement for each process
         work = height/nproc;
-        workArray = malloc(sizeof(int) * nproc);
-        offset = malloc(sizeof(int)*nproc);
+        
+        
+    }
+    // measure k-means time
+    start_time_kmeans = MPI_Wtime();
+    centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+    workArray = malloc(sizeof(int) * nproc);
+    offset = malloc(sizeof(int)*nproc);
+    if(rank==0)
+    {
+        for (int i = 0; i < K; i++)
+        {
+            centroids[i].r = rand() % (255 - 0 + 1) + 0;
+            centroids[i].g = rand() % (255 - 0 + 1) + 0;
+            centroids[i].b = rand() % (255 - 0 + 1) + 0;
+        }
         for(int i = 0; i < nproc; i++)
         {
             workArray[i] = work;
@@ -333,51 +346,43 @@ int main(int argc, char*argv[])
         }
     }
 
-    start_time_kmeans = MPI_Wtime();
 
-    centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
-    if(rank==0)
-    {
-        for (int i = 0; i < K; i++)
-        {
-            centroids[i].r = rand() % (255 - 0 + 1) + 0;
-            centroids[i].g = rand() % (255 - 0 + 1) + 0;
-            centroids[i].b = rand() % (255 - 0 + 1) + 0;
-        }
-    }
-    
+
     MPI_Bcast(workArray,nproc,MPI_INT,0,comm);
     MPI_Bcast(offset, nproc, MPI_INT,0,comm);
 
     //brodcast the centroids
     MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
 
-    // measure k-means time
+
+    // //all run kMeanks
+    // Pixel** clusteredImage = kmeans(centroids, localPixels, width, height, threads);
+    // end_time = MPI_Wtime();
 
     //all run kMeanks
-    Pixel** clusteredImage = kmeans(centroids, localPixels, width, height, threads);
-    end_time = MPI_Wtime();
-
-    elapsed_time = end_time - start_time_kmeans;
+    //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
 
     printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
     //gather the pixels
 
-    // if(rank == 0)
-    // {
-    //     writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
-    //     freePixels(pixels,height);
-    // }
+    if(rank == 0)
+    {
+        // writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        freePixels(pixels,height);
+    }
 
-    freePixels(localPixels, height);
+    // freePixels(localPixels, height);
     free(centroids);
+    end_time = MPI_Wtime();
+    elapsed_time = end_time - start_time;
+    printf("Elapsed Time (Full): %ld\n", elapsed_time);
     MPI_Finalize();
 
-    end_time = MPI_Wtime();
+    // end_time = MPI_Wtime();
 
-    elapsed_time = end_time - start_time;
+    // elapsed_time = end_time - start_time;
 
-    printf("Elapsed Time (Full): %ld\n", elapsed_time);
+    // printf("Elapsed Time (Full): %ld\n", elapsed_time);
 
     return 0;
 }
