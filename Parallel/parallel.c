@@ -286,12 +286,13 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 int main(int argc, char*argv[])
 {   
     gettimeofday(&start_time, NULL);
-    int rank, nproc, threads,height,width, work, offset,start;
+    int rank, nproc, threads,height,width, work, start;
     const char *fileName;
     Pixel** localPixels;
     Pixel** pixels;
     Pixel* centroids;
     int *workArray;
+    int *offset;
 
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
@@ -317,31 +318,34 @@ int main(int argc, char*argv[])
             fprintf(stderr, "Error reading PNG file\n");
             return 1;
         }
-        //following line allocates memory for array of pointers(Pixel*) - instead should be memory for array of Pixel?
-       centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
-       //centroids = (Pixel*)malloc(sizeof(Pixel) * (K));
+        //calulate work and displacement for each process
+        work = height/nproc;
+        workArray = malloc(sizeof(int) * nproc);
+        offset = malloc(sizeof(int)*nproc);
+        for(int i = 0; i < nproc; i++)
+        {
+            workArray[i] = work;
+            offset[i] = rank*work;
+            if(rank == nproc-1)
+            {
+                workArray[i] = height-(rank*work);//read my git comment if you want to understand this right away
+            }
+        }
+    }
 
+    centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
+    if(rank==0)
+    {
         for (int i = 0; i < K; i++)
         {
             centroids[i].r = rand() % (255 - 0 + 1) + 0;
             centroids[i].g = rand() % (255 - 0 + 1) + 0;
             centroids[i].b = rand() % (255 - 0 + 1) + 0;
         }
-        //calulate work for each process
-        work = height/nproc;
-        workArray = malloc(sizeof(int) * nproc);
-        if(work%nproc != 0)
-        {
-            for(int i = 0; i < nproc; i++)
-            {
-                workArray[i] = work;
-                if(rank == nproc-1)
-                    workArray[i] = height-(rank*work);//read my git comment if you want to understand this right away
-                
-            }
-        }
     }
-    MPI_Bcast(work,1,MPI_INT,0,comm);
+    
+    MPI_Bcast(workArray,nproc,MPI_INT,0,comm);
+    MPI_Bcast(offset, nproc, MPI_INT,0,comm);
 
     //brodcast the centroids
     MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
