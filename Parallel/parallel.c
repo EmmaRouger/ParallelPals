@@ -323,7 +323,13 @@ int main(int argc, char*argv[])
         workArray = malloc(sizeof(int) * nproc);
         if(work%nproc != 0)
         {
-
+            for(int i = 0; i < nproc; i++)
+            {
+                workArray[i] = work;
+                if(rank == nproc-1)
+                    workArray[i] = height-(rank*work);
+                
+            }
         }
     }
     MPI_Bcast(work,1,MPI_INT,0,comm);
