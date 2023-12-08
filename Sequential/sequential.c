@@ -11,6 +11,9 @@
 
 #define K 8  // Number of clusters for K-means
 
+struct timeval start_time, end_time, start_time_kmeans; // for measuring time
+double elapsed_time = 0;
+
 // Structure to represent a pixel
 typedef struct {
     unsigned char r, g, b;
@@ -91,7 +94,9 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height) {
         {
             oldCentroids[i] = centroids[i];
         }
+
         updateCentroids(centroids, clusterSizes, clusters);
+
         for(int i=0; i < K; i++)
         {
             if(isPixelEqual(oldCentroids[i], centroids[i]))
@@ -271,12 +276,14 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 
 }
 int main() {
+    gettimeofday(&start_time, NULL);
 
     const char* filename = "1input.png";
     int width, height;
     printf("1\n");
     // Read the PNG file and get the 2D array of pixels
     Pixel** pixels = readPNG(filename, &width, &height);
+
     printf("2\n");
     if (!pixels) {
         fprintf(stderr, "Error reading PNG file\n");
@@ -291,7 +298,12 @@ int main() {
         centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
 
+    // measure k-means time
+    gettimeofday(&start_time_kmeans, NULL);
     Pixel** clusteredImage = kMeans(centroids, pixels, width, height);
+    gettimeofday(&end_time, NULL);
+    elapsed_time = (end_time.tv_sec - start_time_kmeans.tv_sec) + (end_time.tv_usec - start_time_kmeans.tv_usec) / 1.0e6;
+    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
     //Access individual pixels and prints the values
     // for (int y = 0; y < height; y++) {
     //     for (int x = 0; x < width; x++) {
@@ -300,10 +312,14 @@ int main() {
     //     printf("\n");
     // }
 
+
     writePNG("output.png", width, height, clusteredImage);
 
     // Free the memory used by the 2D array of pixels
     freePixels(pixels, height);
-
+    
+    gettimeofday(&end_time, NULL);
+    elapsed_time = (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1.0e6;
+    printf("Elapsed Time (Full): %ld\n", elapsed_time);
     return 0;
 }
