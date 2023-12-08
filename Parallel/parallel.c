@@ -274,14 +274,15 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
     png_destroy_write_struct(&png, &info);
 
 }
-int main(int argc, char*argv[]) 
+int main(int argc, char*argv[])
 {
 
-    int rank, nproc, threads,height,width, work, offset;
+    int rank, nproc, threads,height,width, work, offset,start;
     const char *fileName;
     Pixel** localPixels;
     Pixel** pixels;
     Pixel* centroids;
+    int *workArray;
 
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
@@ -318,43 +319,32 @@ int main(int argc, char*argv[])
             centroids[i].b = rand() % (255 - 0 + 1) + 0;
         }
         //calulate work for each process
-        work = height / threads;
-        offset = height % threads;
+        work = height/nproc;
+        workArray = malloc(sizeof(int) * nproc);
+        if(work%nproc != 0)
+        {
 
-        MPI_Bcast(&work, 1, MPI_INT, 0, comm);
-        MPI_Bcast(&offset, 1, MPI_INT, 0, comm);
-
+        }
     }
-    //brodcast the work from rank 0
-    //allocate memeory using work for local pixels
-
-    localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
-    for(int i = 0; i < work; i++)
-    {
-        localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
-    }
-
-    //scatter the pixels
-    //sendCounts and displs probably wrong
-    MPI_Scatterv(pixels, work, offset, MPI_BYTE, &localPixels, work, MPI_BYTE, 0, comm);
+    MPI_Bcast(work,1,MPI_INT,0,comm);
 
     //brodcast the centroids
     MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
 
     //all run kMeanks
-    Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
+    //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
 
     //gather the pixels
- 
-    if(rank == 0)
-    {
-        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
-        freePixels(pixels,height);
-    }
-    
+
+    // if(rank == 0)
+    // {
+    //     writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+    //     freePixels(pixels,height);
+    // }
+
     freePixels(localPixels, height);
     free(centroids);
     MPI_Finalize();
-    
+
     return 0;
 }

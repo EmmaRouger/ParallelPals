@@ -1,3 +1,4 @@
 
 *.exe
 Parallel/test.c
+Sequential/test.c
