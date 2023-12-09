@@ -55,7 +55,6 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
     int end=0;
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
 
-    
     for (int y = 0; y < height; y++) {
         clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));//can cause issues - should allocate memory outside parallel region
         for (int x = 0; x < width; x++) {
@@ -284,7 +283,7 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 
 }
 int main(int argc, char*argv[])
-{   
+{
     int rank, nproc, threads,height,width, work, start;
     const char *fileName;
     Pixel** localPixels;
@@ -322,8 +321,8 @@ int main(int argc, char*argv[])
         }
         //calulate work and displacement for each process
         work = height/nproc;
-        
-        
+
+
     }
     // measure k-means time
     start_time_kmeans = MPI_Wtime();
@@ -341,36 +340,34 @@ int main(int argc, char*argv[])
         for(int i = 0; i < nproc; i++)
         {
             workArray[i] = work;
-            offset[i] = rank*work;
-            if(rank == nproc-1)
+            offset[i] = i*work;
+            if(i == nproc-1)
             {
-                workArray[i] = height-(rank*work);//read my git comment if you want to understand this right away
+                workArray[i] = height-(i*work);//read my git comment if you want to understand this right away
             }
         }
     }
 
-
-
+    MPI_Bcast(&height,1,MPI_INT,0,comm);
+    MPI_Bcast(&threads,1,MPI_INT,0,comm);
     MPI_Bcast(workArray,nproc,MPI_INT,0,comm);
     MPI_Bcast(offset, nproc, MPI_INT,0,comm);
+    work = workArray[rank];
 
     //brodcast the centroids
-    MPI_Bcast(centroids, K, MPI_BYTE, 0, comm);
+    MPI_Bcast(centroids, K, pixel_type, 0, comm);
     //allocate memory for local pixel
     localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
     for(int i = 0; i < work; i++)
     {
         localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
     }
-    // Scatter the pixel into the different 
-    MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels,workArray[rank],pixel_type,0,comm);
+    // Scatter the pixel into the different
+    MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels[0],workArray[rank],pixel_type,0,comm);
     printf("3");
     //all run kMeanks
-    // Pixel** localClusteredImage = kMeans(centroids, localPixels, width, height, threads);
+    Pixel** localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
     end_time = MPI_Wtime();
-
-    //all run kMeanks
-    //Pixel** clusteredImage = kmeans(centroids, localPixels, width, height);
 
     printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
     //gather the pixels
@@ -387,12 +384,6 @@ int main(int argc, char*argv[])
     elapsed_time = end_time - start_time;
     printf("Elapsed Time (Full): %ld\n", elapsed_time);
     MPI_Finalize();
-
-    // end_time = MPI_Wtime();
-
-    // elapsed_time = end_time - start_time;
-
-    // printf("Elapsed Time (Full): %ld\n", elapsed_time);
 
     return 0;
 }
