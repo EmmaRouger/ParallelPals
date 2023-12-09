@@ -55,7 +55,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
 
     //allocates memory for a 2D array to store clustered pixels
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
-    
+
     //set the number of threads for openMP
     omp_set_num_threads(numThreads);
     #pragma omp parallel for
@@ -71,7 +71,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
     {
         Pixel clusters[K] = {0};
 
-        #pragma omp parallel for 
+        #pragma omp parallel for
         for (int i = 0; i < height; i++)
         {
             for (int j = 0; j < width; j++) {
@@ -126,7 +126,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
 }
 
 // Function to read PNG file and create a 2D array of pixels
-Pixel** readPNG(const char* filename, int* width, int* height) {
+Pixel* readPNG(const char* filename, int* width, int* height) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
         fprintf(stderr, "Error opening file %s\n", filename);
@@ -193,18 +193,30 @@ Pixel** readPNG(const char* filename, int* width, int* height) {
     fclose(fp);
     png_destroy_read_struct(&png, &info, NULL);
 
-    // Create a 2D array of pixels
-    Pixel** pixels = (Pixel**)malloc(sizeof(Pixel*) * (*height));
+    // Create a 2D array of pixels -- doesnt work for scatter :(
+    Pixel** twoDPixels = (Pixel**)malloc(sizeof(Pixel*) * (*height));
     for (int y = 0; y < *height; y++) {
-        pixels[y] = (Pixel*)malloc(sizeof(Pixel) * (*width));
+        twoDPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (*width));
         for (int x = 0; x < *width; x++) {
-            pixels[y][x].r = row_pointers[y][x * 4];
-            pixels[y][x].g = row_pointers[y][x * 4 + 1];
-            pixels[y][x].b = row_pointers[y][x * 4 + 2];
+            twoDPixels[y][x].r = row_pointers[y][x * 4];
+            twoDPixels[y][x].g = row_pointers[y][x * 4 + 1];
+            twoDPixels[y][x].b = row_pointers[y][x * 4 + 2];
+        }
+    }
+    //learned why scatter does not work on 2d arrays this is our last min fix
+    Pixel* pixels= (Pixel*)malloc(sizeof(Pixel) * (*width* *height));
+    int index = 0;
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            pixels[index++] = twoDPixels[y][x];
         }
     }
 
     // Free memory used for row pointers
+    for (int y = 0; y < height; y++) {
+        free(twoDPixels[y]);
+    }
+    free(twoDPixels);
     for (int y = 0; y < *height; y++)
         free(row_pointers[y]);
     free(row_pointers);
@@ -292,9 +304,9 @@ int main(int argc, char*argv[])
     double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTime; 
 
     const char *fileName;
-    Pixel** localPixels;
-    Pixel** pixels;
-    Pixel **clusteredImage;
+    Pixel* localPixels;
+    Pixel* pixels;
+    Pixel *clusteredImage;
     Pixel* centroids;
     int *workArray;
     int *offset;
@@ -325,6 +337,15 @@ int main(int argc, char*argv[])
         fileName = argv[1];
         // Read the PNG file and get the 2D array of pixels
         pixels = readPNG(fileName, &width, &height);
+
+        // MM || Remove
+        int count = 0;
+        for(int i = 0; i < width * height; i++)
+            if(pixels[i].r ==0 || pixels[i].r)
+                count++;
+        printf("Count: %d\n",count);
+        // MM || Remove END
+
         if (!pixels) {
             fprintf(stderr, "Error reading PNG file\n");
             return 1;
@@ -338,8 +359,6 @@ int main(int argc, char*argv[])
         }
     }
 
-    
-    
     centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
     workArray = malloc(sizeof(int) * nproc);
     offset = malloc(sizeof(int)*nproc);
@@ -379,7 +398,7 @@ int main(int argc, char*argv[])
     }
     // Scatter the pixel into the different
     MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels[0],workArray[rank],pixel_type,0,comm);
-    
+
     //Start k-means time
     MPI_Barrier(comm);
     startTimeKmeans = MPI_Wtime();
@@ -396,7 +415,7 @@ int main(int argc, char*argv[])
 
     elapsedTime = endTimeKmeans - startTimeKmeans;
     printf("Elapsed Time (K-Means): %f\n", elapsedTime);
-    
+
     //gather the pixels
     MPI_Gatherv(localClusteredImage[0], workArray[rank], pixel_type, clusteredImage[0], workArray, offset, pixel_type, 0, comm);
 
