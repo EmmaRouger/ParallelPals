@@ -11,9 +11,6 @@
 
 #define K 8  // Number of clusters for K-means
 
-struct timeval start_time, end_time, start_time_kmeans; // for measuring time
-double elapsed_time = 0;
-
 // Structure to represent a pixel
 typedef struct {
     unsigned char r, g, b;
@@ -275,21 +272,25 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
     png_destroy_write_struct(&png, &info);
 
 }
-int main() {
-    gettimeofday(&start_time, NULL);
+int main(int argc, char* argv[]) {
+ 
+    double start, end, kmeansStart, kmeansEnd;
+    double elapsed, elapsedKmeans;
 
+    //Time the whole program
+    start = clock();
+    
     const char* filename = "1input.png";
     int width, height;
-    printf("1\n");
+
     // Read the PNG file and get the 2D array of pixels
     Pixel** pixels = readPNG(filename, &width, &height);
 
-    printf("2\n");
     if (!pixels) {
         fprintf(stderr, "Error reading PNG file\n");
         return 1;
     }
-    printf("3\n");
+
     Pixel* centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
 
     for (int i = 0; i < K; i++) {
@@ -297,29 +298,27 @@ int main() {
         centroids[i].g = rand() % (255 - 0 + 1) + 0;
         centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
-
-    // measure k-means time
-    gettimeofday(&start_time_kmeans, NULL);
+    
+    //Time the kmeans 
+    kmeansStart = clock();
     Pixel** clusteredImage = kMeans(centroids, pixels, width, height);
-    gettimeofday(&end_time, NULL);
-    elapsed_time = (end_time.tv_sec - start_time_kmeans.tv_sec) + (end_time.tv_usec - start_time_kmeans.tv_usec) / 1.0e6;
-    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
-    //Access individual pixels and prints the values
-    // for (int y = 0; y < height; y++) {
-    //     for (int x = 0; x < width; x++) {
-    //         printf("(%u, %u, %u) ", pixels[y][x].r, pixels[y][x].g, pixels[y][x].b);
-    //     }
-    //     printf("\n");
-    // }
+    kmeansEnd = clock();
 
+    //End time for kmeans
+    elapsedKmeans = ((double) (kmeansEnd - kmeansStart)) / CLOCKS_PER_SEC;  
+
+    printf("Elapsed Time (K-Means): %f\n", elapsedKmeans);
 
     writePNG("output.png", width, height, clusteredImage);
 
     // Free the memory used by the 2D array of pixels
     freePixels(pixels, height);
+
+    //End time for whole program
+    end = clock();
+    elapsed = ((double) (end - start)) / CLOCKS_PER_SEC;
     
-    gettimeofday(&end_time, NULL);
-    elapsed_time = (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1.0e6;
-    printf("Elapsed Time (Full): %ld\n", elapsed_time);
+    printf("Elapsed Time (Full): %f\n", elapsed);
+
     return 0;
 }

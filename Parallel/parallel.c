@@ -12,8 +12,6 @@
 #define CHANNELS 3  // Define the number of color channels
 
 #define K 8  // Number of clusters for K-means
-double start_time, end_time, start_time_kmeans; // for measuring time
-double elapsed_time = 0;
 
 // Structure to represent a pixel
 typedef struct {
@@ -51,13 +49,18 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K])
 // K-means clustering on image pixels
 Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int numThreads) {
 
+    //Keeps track of cluster sizes
     int clusterSizes[K] = {0};
     int end=0;
+
+    //allocates memory for a 2D array to store clustered pixels
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
+    
+    //set the number of threads for openMP
     omp_set_num_threads(numThreads);
 
     for (int y = 0; y < height; y++) {
-        clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));//can cause issues - should allocate memory outside parallel region
+        clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
         for (int x = 0; x < width; x++) {
             clusteredPixels[y][x].r = 0;
             clusteredPixels[y][x].g = 0;
@@ -68,7 +71,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
     {
         Pixel clusters[K] = {0};
 
-        #pragma omp parallel for num_threads(numThreads)
+        #pragma omp parallel for 
         for (int i = 0; i < height; i++)
         {
             for (int j = 0; j < width; j++) {
@@ -286,6 +289,8 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 int main(int argc, char*argv[])
 {
     int rank, nproc, threads,height,width, work, start;
+    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTime; 
+
     const char *fileName;
     Pixel** localPixels;
     Pixel** pixels;
@@ -301,7 +306,9 @@ int main(int argc, char*argv[])
     MPI_Datatype pixel_type;
     MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &pixel_type);
     MPI_Type_commit(&pixel_type);
-    start_time = MPI_Wtime();
+
+    //Start the time for the whole program
+    startTime = MPI_Wtime();
     if(rank == 0)
     {
         if(argc < 3)
@@ -329,11 +336,15 @@ int main(int argc, char*argv[])
             clusteredImage[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
         }
     }
-    // measure k-means time
-    start_time_kmeans = MPI_Wtime();
+
+    //Start k-means time
+    MPI_Barrier(comm);
+    startTimeKmeans = MPI_Wtime();
+    
     centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
     workArray = malloc(sizeof(int) * nproc);
     offset = malloc(sizeof(int)*nproc);
+
     if(rank==0)
     {
         for (int i = 0; i < K; i++)
@@ -373,7 +384,6 @@ int main(int argc, char*argv[])
 
     //all run kMeanks
     Pixel** localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
-    end_time = MPI_Wtime();
 
     int count=0;
         for(int i=0; i<work; i++)
@@ -387,7 +397,7 @@ int main(int argc, char*argv[])
             }
         }
         printf("rank: %d, count: %d\n", rank,count);
-    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
+    printf("Elapsed Time (K-Means): %ld\n", elapsedTime);
     
     //gather the pixels
 
@@ -416,8 +426,11 @@ int main(int argc, char*argv[])
 
     //freePixels(localPixels, work);
     free(centroids);
-    elapsed_time = MPI_Wtime() - start_time;
-    printf("Elapsed Time (Full): %f\n", elapsed_time);
+    endTime = MPI_Wtime();
+
+    elapsedTime = endTime - startTime;
+    printf("Elapsed Time (Full): %f\n", elapsedTime);
+
     MPI_Finalize();
 
     return 0;
