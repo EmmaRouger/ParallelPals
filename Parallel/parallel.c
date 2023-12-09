@@ -320,7 +320,6 @@ int main(int argc, char*argv[])
         }
 
         threads = atoi(argv[2]);
-        printf("%d\n", threads);
 
         fileName = argv[1];
         // Read the PNG file and get the 2D array of pixels
@@ -384,18 +383,17 @@ int main(int argc, char*argv[])
     MPI_Barrier(comm);
     startTimeKmeans = MPI_Wtime();
     //all run kMeanks
-    Pixel** localClusteredImage= (Pixel**)malloc(sizeof(Pixel*) * work);
-    for(int i = 0; i < workArray[rank]; i++)
-    {
-        localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
-    }
-    localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
+    Pixel** localClusteredImage= kMeans(centroids, localPixels, width, workArray[rank], threads);
 
     MPI_Barrier(comm);
     endTimeKmeans = MPI_Wtime();
 
     elapsedTime = endTimeKmeans - startTimeKmeans;
-    printf("Elapsed Time (K-Means): %f\n", elapsedTime);
+
+    if(rank == 0)
+    {
+        printf("Elapsed Time (K-Means): %f\n", elapsedTime);
+    }
     
     //gather the pixels
     MPI_Gatherv(localClusteredImage[0], workArray[rank], pixel_type, clusteredImage[0], workArray, offset, pixel_type, 0, comm);
@@ -413,7 +411,13 @@ int main(int argc, char*argv[])
     endTime = MPI_Wtime();
 
     elapsedTime = endTime - startTime;
-    printf("Elapsed Time (Full): %f\n", elapsedTime);
+
+    
+    if(rank == 0)
+    {
+        printf("Elapsed Time (Full): %f\n", elapsedTime);
+    }
+    
 
     MPI_Finalize();
 
