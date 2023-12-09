@@ -296,7 +296,7 @@ void writePNG(const char* filename, int width, int height, Pixel* pixels) {
 int main(int argc, char*argv[])
 {
     int rank, nproc, threads,height,width, work, start;
-    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTime;
+    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTimeKmeans, elapsedTime;
 
     const char *fileName;
     Pixel* localPixels;
@@ -399,7 +399,7 @@ int main(int argc, char*argv[])
     endTimeKmeans = MPI_Wtime();
 
     //calculate K-Means time
-    elapsedTime = endTimeKmeans - startTimeKmeans;
+    elapsedTimeKmeans = endTimeKmeans - startTimeKmeans;
 
     //gather the pixels
     MPI_Gatherv(localClusteredImage, workArray[rank], pixel_type, clusteredImage, workArray, offset, pixel_type, 0, comm);
@@ -429,7 +429,7 @@ int main(int argc, char*argv[])
     elapsedTime = endTime - startTime;
     if(rank == 0)
     {
-        printf("Elapsed Time (K-Means): %f\n", elapsedTime);
+        printf("Elapsed Time (K-Means): %f\n", elapsedTimeKmeans);
         printf("Elapsed Time (Full): %f\n", elapsedTime);
     }
 
