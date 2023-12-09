@@ -280,7 +280,7 @@ int main(int argc, char* argv[]) {
     //Time the whole program
     start = clock();
 
-    const char* filename = "1input.png";
+    const char* filename = "images.png";
     int width, height;
 
     // Read the PNG file and get the 2D array of pixels
