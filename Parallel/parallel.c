@@ -326,7 +326,7 @@ int main(int argc, char*argv[])
 
         clusteredImage= (Pixel**)malloc(sizeof(Pixel*) * (height));
         for (int y = 0; y < height; y++) {
-            pixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
+            clusteredImage[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
         }
     }
     // measure k-means time
@@ -391,25 +391,26 @@ int main(int argc, char*argv[])
     
     //gather the pixels
 
-    // MPI_Gatherv(localClusteredImage[0], work, pixel_type,
-    //     clusteredImage, workArray, offset, pixel_type, 0, comm);
-    // if(rank ==0){
-    //     int count=0;
-    //     for(int i=0; i<height; i++)
-    //     {
-    //         for(int j =0; j< width; j++)
-    //         {
-    //             if(clusteredImage[i][j].r || clusteredImage[i][j].r==0)
-    //             {
-    //                 count++;
-    //             }
-    //         }
-    //     }
-    //     printf("count: %d\n", count);
-    // }
+    printf("Rank %d: Before Gatherv - workArray=%d, offset=%d\n", rank, workArray[rank], offset[rank]);
+    MPI_Gatherv(localClusteredImage[0], workArray[rank], MPI_BYTE, clusteredImage[0], workArray, offset, MPI_BYTE, 0, comm);
+    printf("Rank %d: After Gatherv\n", rank);
+    if(rank ==0){
+        int count=0;
+        for(int i=0; i<height; i++)
+        {
+            for(int j =0; j< width; j++)
+            {
+                if(clusteredImage[i][j].r || clusteredImage[i][j].r==0)
+                {
+                    count++;
+                }
+            }
+        }
+        printf("count: %d\n", count);
+    }
     if(rank == 0)
     {
-        //writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
         freePixels(pixels,height);
     }
 
