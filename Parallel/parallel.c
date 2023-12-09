@@ -58,7 +58,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
     
     //set the number of threads for openMP
     omp_set_num_threads(numThreads);
-
+    #pragma omp parallel for
     for (int y = 0; y < height; y++) {
         clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
         for (int x = 0; x < width; x++) {
@@ -308,6 +308,7 @@ int main(int argc, char*argv[])
     MPI_Type_commit(&pixel_type);
 
     //Start the time for the whole program
+    MPI_Barrier(comm);
     startTime = MPI_Wtime();
     if(rank == 0)
     {
@@ -321,7 +322,7 @@ int main(int argc, char*argv[])
         threads = atoi(argv[2]);
         printf("%d\n", threads);
 
-        fileName = "images.png";
+        fileName = argv[1];
         // Read the PNG file and get the 2D array of pixels
         pixels = readPNG(fileName, &width, &height);
         if (!pixels) {
@@ -337,9 +338,7 @@ int main(int argc, char*argv[])
         }
     }
 
-    //Start k-means time
-    MPI_Barrier(comm);
-    startTimeKmeans = MPI_Wtime();
+    
     
     centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
     workArray = malloc(sizeof(int) * nproc);
@@ -381,43 +380,27 @@ int main(int argc, char*argv[])
     // Scatter the pixel into the different
     MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels[0],workArray[rank],pixel_type,0,comm);
     
-
+    //Start k-means time
+    MPI_Barrier(comm);
+    startTimeKmeans = MPI_Wtime();
     //all run kMeanks
-    Pixel** localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
+    Pixel** localClusteredImage= (Pixel**)malloc(sizeof(Pixel*) * work);
+    for(int i = 0; i < workArray[rank]; i++)
+    {
+        localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
+    }
+    localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
 
-    int count=0;
-        for(int i=0; i<work; i++)
-        {
-            for(int j =0; j< width; j++)
-            {
-                if(localClusteredImage[i][j].r || localClusteredImage[i][j].r==0)
-                {
-                    count++;
-                }
-            }
-        }
-        printf("rank: %d, count: %d\n", rank,count);
-    printf("Elapsed Time (K-Means): %ld\n", elapsedTime);
+    MPI_Barrier(comm);
+    endTimeKmeans = MPI_Wtime();
+
+    elapsedTime = endTimeKmeans - startTimeKmeans;
+    printf("Elapsed Time (K-Means): %f\n", elapsedTime);
     
     //gather the pixels
+    MPI_Gatherv(localClusteredImage[0], workArray[rank], pixel_type, clusteredImage[0], workArray, offset, pixel_type, 0, comm);
 
-    printf("Rank %d: Before Gatherv - workArray=%d, offset=%d\n", rank, workArray[rank], offset[rank]);
-    MPI_Gatherv(localClusteredImage[0], workArray[rank], MPI_BYTE, clusteredImage[0], workArray, offset, MPI_BYTE, 0, comm);
-    printf("Rank %d: After Gatherv\n", rank);
-    if(rank ==0){
-        int count=0;
-        for(int i=0; i<height; i++)
-        {
-            for(int j =0; j< width; j++)
-            {
-                if(clusteredImage[i][j].r || clusteredImage[i][j].r==0)
-                {
-                    count++;
-                }
-            }
-        }
-        printf("count: %d\n", count);
-    }
+
     if(rank == 0)
     {
         writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
@@ -426,6 +409,7 @@ int main(int argc, char*argv[])
 
     //freePixels(localPixels, work);
     free(centroids);
+    MPI_Barrier(comm);
     endTime = MPI_Wtime();
 
     elapsedTime = endTime - startTime;
