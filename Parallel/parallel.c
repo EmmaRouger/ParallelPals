@@ -19,6 +19,7 @@ typedef struct {
 
 } Pixel;
 
+//Checks if pixels are equal
 bool isPixelEqual(Pixel p1, Pixel p2)
 {
     if((p1.r == p2.r) && (p1.g == p2.g) && (p1.b == p2.b))
@@ -295,7 +296,7 @@ void writePNG(const char* filename, int width, int height, Pixel* pixels) {
 int main(int argc, char*argv[])
 {
     int rank, nproc, threads,height,width, work, start;
-    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTime; 
+    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTime;
 
     const char *fileName;
     Pixel* localPixels;
@@ -347,7 +348,7 @@ int main(int argc, char*argv[])
         //calulate work and displacement for each process
         work = height/nproc;
 
-        clusteredImage= (Pixel*)malloc(sizeof(Pixel) * (height)* width);
+        clusteredImage= (Pixel*)malloc(sizeof(Pixel) * (height * width));
     }
 
     centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
@@ -364,15 +365,16 @@ int main(int argc, char*argv[])
         }
         for(int i = 0; i < nproc; i++)
         {
-            workArray[i] = work;
-            offset[i] = i*work;
+            workArray[i] = work * width;
+            offset[i] = i*(work*width);
             if(i == nproc-1)
             {
-                workArray[i] = height-(i*work);//read my git comment if you want to understand this right away
+                workArray[i] = (height*width)-(i*work*width);
             }
         }
     }
 
+    //Bcast to other procs
     MPI_Bcast(&width,1,MPI_INT,0,comm);
     MPI_Bcast(&threads,1,MPI_INT,0,comm);
     MPI_Bcast(workArray,nproc,MPI_INT,0,comm);
@@ -390,32 +392,45 @@ int main(int argc, char*argv[])
     MPI_Barrier(comm);
     startTimeKmeans = MPI_Wtime();
     //all run kMeanks
-    //Pixel* localClusteredImage= kMeans(centroids, localPixels, width, workArray[rank], threads);
+    Pixel* localClusteredImage= kMeans(centroids, localPixels, width, workArray[rank], threads);
 
+    //wait for other Procs
     MPI_Barrier(comm);
     endTimeKmeans = MPI_Wtime();
 
+    //calculate K-Means time
     elapsedTime = endTimeKmeans - startTimeKmeans;
     printf("Elapsed Time (K-Means): %f\n", elapsedTime);
 
     //gather the pixels
-    MPI_Gatherv(localPixels, workArray[rank], pixel_type, clusteredImage, workArray, offset, pixel_type, 0, comm);
+    MPI_Gatherv(localClusteredImage, workArray[rank], pixel_type, clusteredImage, workArray, offset, pixel_type, 0, comm);
 
 
     if(rank == 0)
     {
-        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        //write new .PNG
+        writePNG("output.png", width, height, clusteredImage);
         free(pixels);
+        free(clusteredImage);
     }
 
-    //freePixels(localPixels, work);
+
+    //free arrays
     free(centroids);
+    free(localPixels);
+    free(localClusteredImage);
+    free(offset);
+    free(workArray);
     MPI_Barrier(comm);
+
+    //end time
     endTime = MPI_Wtime();
 
+    //elasped time
     elapsedTime = endTime - startTime;
     printf("Elapsed Time (Full): %f\n", elapsedTime);
 
+//Finalize
     MPI_Finalize();
 
     return 0;
