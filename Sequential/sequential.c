@@ -273,13 +273,13 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 
 }
 int main(int argc, char* argv[]) {
- 
+
     double start, end, kmeansStart, kmeansEnd;
     double elapsed, elapsedKmeans;
 
     //Time the whole program
     start = clock();
-    
+
     const char* filename = "1input.png";
     int width, height;
 
@@ -298,14 +298,14 @@ int main(int argc, char* argv[]) {
         centroids[i].g = rand() % (255 - 0 + 1) + 0;
         centroids[i].b = rand() % (255 - 0 + 1) + 0;
     }
-    
-    //Time the kmeans 
+
+    //Time the kmeans
     kmeansStart = clock();
     Pixel** clusteredImage = kMeans(centroids, pixels, width, height);
     kmeansEnd = clock();
 
     //End time for kmeans
-    elapsedKmeans = ((double) (kmeansEnd - kmeansStart)) / CLOCKS_PER_SEC;  
+    elapsedKmeans = ((double) (kmeansEnd - kmeansStart)) / CLOCKS_PER_SEC;
 
     printf("Elapsed Time (K-Means): %f\n", elapsedKmeans);
 
@@ -317,7 +317,7 @@ int main(int argc, char* argv[]) {
     //End time for whole program
     end = clock();
     elapsed = ((double) (end - start)) / CLOCKS_PER_SEC;
-    
+
     printf("Elapsed Time (Full): %f\n", elapsed);
 
     return 0;

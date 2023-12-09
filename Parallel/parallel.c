@@ -6,7 +6,10 @@
 #include <time.h>
 #include <omp.h>
 #include <mpi.h>
-
+/*
+    Compile: mpicc -o out parallel.c -lpng -fopenmp
+    Run: mpiexec -n <numOfProc> out.exe <fileName> <Threads>
+*/
 // #define WIDTH 100   // Define image width
 // #define HEIGHT 100  // Define image height
 #define CHANNELS 3  // Define the number of color channels
@@ -19,6 +22,7 @@ typedef struct {
 
 } Pixel;
 
+//Checks if pixels are equal
 bool isPixelEqual(Pixel p1, Pixel p2)
 {
     if((p1.r == p2.r) && (p1.g == p2.g) && (p1.b == p2.b))
@@ -47,40 +51,40 @@ void updateCentroids(Pixel centroids[K], int clusterSizes[K], Pixel clusters[K])
 }
 
 // K-means clustering on image pixels
-Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int numThreads) {
+Pixel* kMeans(Pixel centroids[K], Pixel *pixels, int width, int height, int numThreads) {
 
     //Keeps track of cluster sizes
     int clusterSizes[K] = {0};
     int end=0;
 
     //allocates memory for a 2D array to store clustered pixels
-    Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
-    
-    //set the number of threads for openMP
+    Pixel* clusteredPixels = (Pixel*)malloc(sizeof(Pixel*) * (height)*width);
     omp_set_num_threads(numThreads);
+
     #pragma omp parallel for
     for (int y = 0; y < height; y++) {
-        clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
         for (int x = 0; x < width; x++) {
-            clusteredPixels[y][x].r = 0;
-            clusteredPixels[y][x].g = 0;
-            clusteredPixels[y][x].b = 0;
+            int index = y * width + x;
+            clusteredPixels[index].r = 0;
+            clusteredPixels[index].g = 0;
+            clusteredPixels[index].b = 0;
         }
     }
     while(end==0)
     {
         Pixel clusters[K] = {0};
 
-        #pragma omp parallel for 
+        #pragma omp parallel for
         for (int i = 0; i < height; i++)
         {
             for (int j = 0; j < width; j++) {
-                double minDistance = calculateDistance(centroids[0], pixels[i][j]);
+                int index = i * width + j;
+                double minDistance = calculateDistance(centroids[0], pixels[index]);
                 int closestCluster = 0;
 
                 for (int k = 1; k < K; k++)
                 {
-                    double distance = calculateDistance(centroids[k], pixels[i][j]);
+                    double distance = calculateDistance(centroids[k], pixels[index]);
                     if (distance < minDistance)
                     {
                         minDistance = distance;
@@ -90,13 +94,13 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
 
                 #pragma omp critical
                 {
-                    clusters[closestCluster].r += pixels[i][j].r;
-                    clusters[closestCluster].g += pixels[i][j].g;
-                    clusters[closestCluster].b += pixels[i][j].b;
+                    clusters[closestCluster].r += pixels[index].r;
+                    clusters[closestCluster].g += pixels[index].g;
+                    clusters[closestCluster].b += pixels[index].b;
                 }
-                clusteredPixels[i][j].r = centroids[closestCluster].r;
-                clusteredPixels[i][j].g = centroids[closestCluster].g;
-                clusteredPixels[i][j].b = centroids[closestCluster].b;
+                clusteredPixels[index].r = centroids[closestCluster].r;
+                clusteredPixels[index].g = centroids[closestCluster].g;
+                clusteredPixels[index].b = centroids[closestCluster].b;
                 clusterSizes[closestCluster]++;
             }
         }
@@ -126,7 +130,7 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
 }
 
 // Function to read PNG file and create a 2D array of pixels
-Pixel** readPNG(const char* filename, int* width, int* height) {
+Pixel* readPNG(const char* filename, int* width, int* height) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
         fprintf(stderr, "Error opening file %s\n", filename);
@@ -193,18 +197,30 @@ Pixel** readPNG(const char* filename, int* width, int* height) {
     fclose(fp);
     png_destroy_read_struct(&png, &info, NULL);
 
-    // Create a 2D array of pixels
-    Pixel** pixels = (Pixel**)malloc(sizeof(Pixel*) * (*height));
+    // Create a 2D array of pixels -- doesnt work for scatter :(
+    Pixel** twoDPixels = (Pixel**)malloc(sizeof(Pixel*) * (*height));
     for (int y = 0; y < *height; y++) {
-        pixels[y] = (Pixel*)malloc(sizeof(Pixel) * (*width));
+        twoDPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (*width));
         for (int x = 0; x < *width; x++) {
-            pixels[y][x].r = row_pointers[y][x * 4];
-            pixels[y][x].g = row_pointers[y][x * 4 + 1];
-            pixels[y][x].b = row_pointers[y][x * 4 + 2];
+            twoDPixels[y][x].r = row_pointers[y][x * 4];
+            twoDPixels[y][x].g = row_pointers[y][x * 4 + 1];
+            twoDPixels[y][x].b = row_pointers[y][x * 4 + 2];
+        }
+    }
+    //learned why scatter does not work on 2d arrays this is our last min fix
+    Pixel* pixels= (Pixel*)malloc(sizeof(Pixel) * (*width* *height));
+    int index = 0;
+    for (int y = 0; y < *height; y++) {
+        for (int x = 0; x < *width; x++) {
+            pixels[index++] = twoDPixels[y][x];
         }
     }
 
     // Free memory used for row pointers
+    for (int y = 0; y < *height; y++) {
+        free(twoDPixels[y]);
+    }
+    free(twoDPixels);
     for (int y = 0; y < *height; y++)
         free(row_pointers[y]);
     free(row_pointers);
@@ -213,15 +229,8 @@ Pixel** readPNG(const char* filename, int* width, int* height) {
 }
 
 
-// Function to free the memory used by the 2D array of pixels
-void freePixels(Pixel** pixels, int height) {
-    for (int y = 0; y < height; y++)
-        free(pixels[y]);
-    free(pixels);
-}
-
 // Function to write a 2D array of pixels to a PNG file
-void writePNG(const char* filename, int width, int height, Pixel** pixels) {
+void writePNG(const char* filename, int width, int height, Pixel* pixels) {
     FILE* fp = fopen(filename, "wb");
     if (!fp) {
         fprintf(stderr, "Error opening file %s for writing\n", filename);
@@ -264,9 +273,10 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
     // Copy pixel values to row pointers
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            row_pointers[y][x * 3] = pixels[y][x].r;
-            row_pointers[y][x * 3 + 1] = pixels[y][x].g;
-            row_pointers[y][x * 3 + 2] = pixels[y][x].b;
+            int index = y * (width) + x;
+            row_pointers[y][x * 3] = pixels[index].r;
+            row_pointers[y][x * 3 + 1] = pixels[index].g;
+            row_pointers[y][x * 3 + 2] = pixels[index].b;
         }
     }
 
@@ -289,12 +299,12 @@ void writePNG(const char* filename, int width, int height, Pixel** pixels) {
 int main(int argc, char*argv[])
 {
     int rank, nproc, threads,height,width, work, start;
-    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTime; 
+    double startTime, endTime, startTimeKmeans, endTimeKmeans, elapsedTimeKmeans, elapsedTime;
 
     const char *fileName;
-    Pixel** localPixels;
-    Pixel** pixels;
-    Pixel **clusteredImage;
+    Pixel* localPixels;
+    Pixel* pixels;
+    Pixel *clusteredImage;
     Pixel* centroids;
     int *workArray;
     int *offset;
@@ -320,10 +330,20 @@ int main(int argc, char*argv[])
         }
 
         threads = atoi(argv[2]);
+        printf("%d\n", threads);
 
         fileName = argv[1];
         // Read the PNG file and get the 2D array of pixels
         pixels = readPNG(fileName, &width, &height);
+
+        // MM || Remove
+        int count = 0;
+        for(int i = 0; i < width * height; i++)
+            if(pixels[i].r ==0 || pixels[i].r)
+                count++;
+        printf("Count: %d\n",count);
+        // MM || Remove END
+
         if (!pixels) {
             fprintf(stderr, "Error reading PNG file\n");
             return 1;
@@ -331,14 +351,9 @@ int main(int argc, char*argv[])
         //calulate work and displacement for each process
         work = height/nproc;
 
-        clusteredImage= (Pixel**)malloc(sizeof(Pixel*) * (height));
-        for (int y = 0; y < height; y++) {
-            clusteredImage[y] = (Pixel*)malloc(sizeof(Pixel) * (width));
-        }
+        clusteredImage= (Pixel*)malloc(sizeof(Pixel) * (height * width));
     }
 
-    
-    
     centroids = (Pixel*)malloc(sizeof(Pixel*) * (K));
     workArray = malloc(sizeof(int) * nproc);
     offset = malloc(sizeof(int)*nproc);
@@ -353,15 +368,16 @@ int main(int argc, char*argv[])
         }
         for(int i = 0; i < nproc; i++)
         {
-            workArray[i] = work;
-            offset[i] = i*work;
+            workArray[i] = work * width;
+            offset[i] = i*(work*width);
             if(i == nproc-1)
             {
-                workArray[i] = height-(i*work);//read my git comment if you want to understand this right away
+                workArray[i] = (height*width)-(i*work*width);
             }
         }
     }
 
+    //Bcast to other procs
     MPI_Bcast(&width,1,MPI_INT,0,comm);
     MPI_Bcast(&threads,1,MPI_INT,0,comm);
     MPI_Bcast(workArray,nproc,MPI_INT,0,comm);
@@ -371,54 +387,56 @@ int main(int argc, char*argv[])
     //brodcast the centroids
     MPI_Bcast(centroids, K, pixel_type, 0, comm);
     //allocate memory for local pixel
-    localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
-    for(int i = 0; i < workArray[rank]; i++)
-    {
-        localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
-    }
+    localPixels = malloc(sizeof(Pixel) * work*width);
     // Scatter the pixel into the different
-    MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels[0],workArray[rank],pixel_type,0,comm);
-    
+    MPI_Scatterv(pixels,workArray,offset,pixel_type, localPixels,workArray[rank],pixel_type,0,comm);
+
     //Start k-means time
     MPI_Barrier(comm);
     startTimeKmeans = MPI_Wtime();
     //all run kMeanks
-    Pixel** localClusteredImage= kMeans(centroids, localPixels, width, workArray[rank], threads);
+    Pixel* localClusteredImage= kMeans(centroids, localPixels, width, workArray[rank], threads);
 
+    //wait for other Procs
     MPI_Barrier(comm);
     endTimeKmeans = MPI_Wtime();
 
-    elapsedTime = endTimeKmeans - startTimeKmeans;
+    //calculate K-Means time
+    elapsedTimeKmeans = endTimeKmeans - startTimeKmeans;
 
-    if(rank == 0)
-    {
-        printf("Elapsed Time (K-Means): %f\n", elapsedTime);
-    }
-    
     //gather the pixels
-    MPI_Gatherv(localClusteredImage[0], workArray[rank], pixel_type, clusteredImage[0], workArray, offset, pixel_type, 0, comm);
+    MPI_Gatherv(localClusteredImage, workArray[rank], pixel_type, clusteredImage, workArray, offset, pixel_type, 0, comm);
 
 
     if(rank == 0)
     {
-        writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
-        freePixels(pixels,height);
+        //write new .PNG
+        writePNG("output.png", width, height, clusteredImage);
+        free(pixels);
+        free(clusteredImage);
     }
 
-    //freePixels(localPixels, work);
+
+    //free arrays
     free(centroids);
+    free(localPixels);
+    free(localClusteredImage);
+    free(offset);
+    free(workArray);
     MPI_Barrier(comm);
+
+    //end time
     endTime = MPI_Wtime();
 
+    //elasped time
     elapsedTime = endTime - startTime;
-
-    
     if(rank == 0)
     {
+        printf("Elapsed Time (K-Means): %f\n", elapsedTimeKmeans);
         printf("Elapsed Time (Full): %f\n", elapsedTime);
     }
-    
 
+//Finalize
     MPI_Finalize();
 
     return 0;
