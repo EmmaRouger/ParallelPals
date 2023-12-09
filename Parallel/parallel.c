@@ -54,7 +54,8 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
     int clusterSizes[K] = {0};
     int end=0;
     Pixel** clusteredPixels = (Pixel**)malloc(sizeof(Pixel*) * (height));
-
+    omp_set_num_threads(numThreads);
+    
     for (int y = 0; y < height; y++) {
         clusteredPixels[y] = (Pixel*)malloc(sizeof(Pixel) * (width));//can cause issues - should allocate memory outside parallel region
         for (int x = 0; x < width; x++) {
@@ -68,9 +69,9 @@ Pixel** kMeans(Pixel centroids[K], Pixel **pixels, int width, int height, int nu
         Pixel clusters[K] = {0};
 
         #pragma omp parallel for num_threads(numThreads)
-        for (int i = 0; i < width; i++)
+        for (int i = 0; i < height; i++)
         {
-            for (int j = 0; j < height; j++) {
+            for (int j = 0; j < width; j++) {
                 double minDistance = calculateDistance(centroids[0], pixels[i][j]);
                 int closestCluster = 0;
 
@@ -358,7 +359,7 @@ int main(int argc, char*argv[])
     MPI_Bcast(centroids, K, pixel_type, 0, comm);
     //allocate memory for local pixel
     localPixels = (Pixel**)malloc(sizeof(Pixel*) * work);
-    for(int i = 0; i < work; i++)
+    for(int i = 0; i < workArray[rank]; i++)
     {
         localPixels[i] = (Pixel*)malloc(sizeof(Pixel) * width);
     }
@@ -371,18 +372,19 @@ int main(int argc, char*argv[])
 
     printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
     //gather the pixels
-
+    printf("before\n");
+    MPI_Gatherv(localClusteredImage[0],workArray[rank],pixel_type,pixels,workArray,offset,pixel_type,0,comm);
+    printf("after\n");
     if(rank == 0)
     {
-        // writePNG("output.png", width, height, clusteredImage); // this will have to gather from all other process
+        writePNG("output.png", width, height, pixels); // this will have to gather from all other process
         freePixels(pixels,height);
     }
 
     //freePixels(localPixels, work);
     free(centroids);
-    end_time = MPI_Wtime();
-    elapsed_time = end_time - start_time;
-    printf("Elapsed Time (Full): %ld\n", elapsed_time);
+    elapsed_time = MPI_Wtime() - start_time;
+    printf("Elapsed Time (Full): %f\n", elapsed_time);
     MPI_Finalize();
 
     return 0;
