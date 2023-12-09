@@ -400,7 +400,6 @@ int main(int argc, char*argv[])
 
     //calculate K-Means time
     elapsedTime = endTimeKmeans - startTimeKmeans;
-    printf("Elapsed Time (K-Means): %f\n", elapsedTime);
 
     //gather the pixels
     MPI_Gatherv(localClusteredImage, workArray[rank], pixel_type, clusteredImage, workArray, offset, pixel_type, 0, comm);
@@ -428,7 +427,11 @@ int main(int argc, char*argv[])
 
     //elasped time
     elapsedTime = endTime - startTime;
-    printf("Elapsed Time (Full): %f\n", elapsedTime);
+    if(rank == 0)
+    {
+        printf("Elapsed Time (K-Means): %f\n", elapsedTime);
+        printf("Elapsed Time (Full): %f\n", elapsedTime);
+    }
 
 //Finalize
     MPI_Finalize();
