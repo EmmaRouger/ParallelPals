@@ -300,7 +300,7 @@ int main(int argc, char*argv[])
     MPI_Datatype pixel_type;
     MPI_Type_contiguous(3, MPI_UNSIGNED_CHAR, &pixel_type);
     MPI_Type_commit(&pixel_type);
-    start_time = MPI_Wtime();
+    //start_time = MPI_Wtime();
     if(rank == 0)
     {
         if(argc < 3)
@@ -368,23 +368,35 @@ int main(int argc, char*argv[])
     printf("3");
     //all run kMeanks
     Pixel** localClusteredImage = kMeans(centroids, localPixels, width, workArray[rank], threads);
-    end_time = MPI_Wtime();
-
-    printf("Elapsed Time (K-Means): %ld\n", elapsed_time);
-    //gather the pixels
-    printf("before\n");
+    int count = 0;
+    for(int i = 0; i < work; i++)
+    {
+        for(int j = 0; j < width; j++)
+        {
+            if(localClusteredImage[i][j].r == 0 || localClusteredImage[i][j].r)
+            count++;
+        }
+    }
+    printf("Rank: %d Amount : %d", rank,count);
     MPI_Gatherv(localClusteredImage[0],workArray[rank],pixel_type,pixels,workArray,offset,pixel_type,0,comm);
-    printf("after\n");
+
     if(rank == 0)
     {
-        writePNG("output.png", width, height, pixels); // this will have to gather from all other process
-        freePixels(pixels,height);
+        int count = 0;
+        for(int i = 0; i < height; i++)
+        {
+            for(int j = 0; j < width; j++)
+            {
+                if(pixels[i][j].r == 0 || pixels[i][j].r)
+                count++;
+            }
+        }
+        printf("Rank: %d Amount : %d", rank,count);
     }
 
     //freePixels(localPixels, work);
-    free(centroids);
-    elapsed_time = MPI_Wtime() - start_time;
-    printf("Elapsed Time (Full): %f\n", elapsed_time);
+    //elapsed_time = MPI_Wtime() - start_time;
+    //printf("Elapsed Time (Full): %f\n", elapsed_time);
     MPI_Finalize();
 
     return 0;

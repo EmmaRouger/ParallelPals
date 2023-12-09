@@ -2,3 +2,4 @@
 *.exe
 Parallel/test.c
 Sequential/test.c
+Parallel/output.png
