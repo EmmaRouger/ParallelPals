@@ -6,7 +6,10 @@
 #include <time.h>
 #include <omp.h>
 #include <mpi.h>
-
+/*
+    Compile: mpicc -o out parallel.c -lpng -fopenmp
+    Run: mpiexec -n <numOfProc> out.exe <fileName> <Threads>
+*/
 // #define WIDTH 100   // Define image width
 // #define HEIGHT 100  // Define image height
 #define CHANNELS 3  // Define the number of color channels
